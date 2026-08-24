@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -11,12 +12,14 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class Kyc {
     @Id
     private String id;
+    @Indexed
     private String clientId;
     private String name;
     private String idType;
     private String idNum;
     private String idExpiry;
     private String nation;
+    @Indexed
     private String status = "pending";
     private String risk = "Low";
     private Long lastUpdated = System.currentTimeMillis();

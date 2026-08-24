@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
@@ -16,7 +17,9 @@ public class GroupChat {
     private String id;
     private String name;
     private String description;
+    @Indexed
     private List<String> memberIds = new ArrayList<>();
+    @Indexed
     private String createdBy;
     private String icon = "💬";
     private Long createdTime = System.currentTimeMillis();

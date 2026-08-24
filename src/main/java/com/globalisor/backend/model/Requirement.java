@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Map;
@@ -15,7 +16,9 @@ import java.util.HashMap;
 public class Requirement {
     @Id
     private String id;
+    @Indexed
     private String userId;
+    @Indexed
     private String status = "pending";
     private String staff = "Unassigned";
     private Date createdAt = new Date();

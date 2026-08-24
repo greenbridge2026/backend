@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.*;
@@ -13,6 +14,7 @@ import java.util.*;
 public class Onboarding {
     @Id
     private String id;
+    @Indexed
     private String clientId;
     private String displayClientId;
     private String clientEmail;
@@ -25,6 +27,7 @@ public class Onboarding {
     private String activatedBy;
 
     // Overall onboarding status
+    @Indexed
     private String status = "pending"; // pending, in_progress, submitted, under_review, approved, rejected
 
     // Progress percentage (0-100)

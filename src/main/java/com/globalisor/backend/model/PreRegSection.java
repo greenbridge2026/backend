@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
@@ -15,14 +16,17 @@ import java.util.Map;
 public class PreRegSection {
     @Id
     private String id;
+    @Indexed
     private String key;
     private String title;
     private String description;
     private String type = "form"; // "form" or "repeater"
     private Integer sortOrder;
+    @Indexed
     private String status = "DRAFT"; // "DRAFT", "PUBLISHED", "UNPUBLISHED"
     private List<Map<String, Object>> fields;
     private String applicableServices = "All";
+    @Indexed
     private String journeyType = "LOCAL"; // "LOCAL" or "FOREIGNER"
 
     // Checklist, FAQs, Attachments, and Documents

@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -14,10 +15,12 @@ public class Blog {
     private String title;
     private String excerpt;
     private String content;
+    @Indexed
     private String category;
     private String author;
     private String date; // e.g. "May 10, 2026"
     private String coverImage;
+    @Indexed
     private Boolean published = true;
     private String publishedTitle;
     private String publishedExcerpt;

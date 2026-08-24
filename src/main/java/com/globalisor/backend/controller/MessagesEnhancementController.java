@@ -320,4 +320,34 @@ public class MessagesEnhancementController {
             // ignore
         }
     }
+
+    @DeleteMapping("/clear-all")
+    public ResponseEntity<?> clearAllMessageHistory() {
+        messageRepository.deleteAll();
+        starredMessageRepository.deleteAll();
+        callHistoryRepository.deleteAll();
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("type", "clear_all_messages");
+            chatWebSocketHandler.broadcastEvent(event);
+        } catch (Exception e) {}
+        Map<String, String> res = new HashMap<>();
+        res.put("message", "All message history successfully cleared.");
+        return ResponseEntity.ok(res);
+    }
+
+    @DeleteMapping("/clear")
+    public ResponseEntity<?> clearClientMessages(@RequestParam String clientId) {
+        List<Message> msgs = messageRepository.findByClientId(clientId);
+        messageRepository.deleteAll(msgs);
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("type", "clear_messages");
+            event.put("clientId", clientId);
+            chatWebSocketHandler.broadcastEvent(event);
+        } catch (Exception e) {}
+        Map<String, String> res = new HashMap<>();
+        res.put("message", "Message history for client " + clientId + " cleared.");
+        return ResponseEntity.ok(res);
+    }
 }

@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -13,19 +14,24 @@ public class User {
     private String id;
     private String firstName;
     private String lastName;
+    @Indexed(unique = true)
     private String email;
     private String password;
+    @Indexed
     private String role = "USER";
     private String plainPassword;
     private Long lastSeenTime;
+    @Indexed
     private String companyName;
     private String phone;
     
     // HR & Staff ID Card Fields
+    @Indexed
     private String employeeId;
     private String designation;
     private String department;
     private String staffPhoto;
+    @Indexed
     private String cardStatus = "ACTIVE";
     private String cardIssueDate;
     private String cardValidUntil;

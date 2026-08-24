@@ -3,6 +3,9 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
@@ -11,10 +14,15 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @Document(collection = "attendance")
+@CompoundIndexes({
+    @CompoundIndex(name = "user_date_idx", def = "{'userId': 1, 'date': -1}")
+})
 public class Attendance {
     @Id
     private String id;
+    @Indexed
     private String userId;
+    @Indexed
     private String date; // YYYY-MM-DD format
     private Long signInTime;
     private Long signOutTime;

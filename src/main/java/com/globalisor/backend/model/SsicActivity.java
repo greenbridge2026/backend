@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.util.Date;
 
@@ -14,10 +15,12 @@ import java.util.Date;
 public class SsicActivity {
     @Id
     private String id;
+    @Indexed
     private String code;
     private String name;
     private String category;
     private String description;
+    @Indexed
     private String status = "PUBLISHED"; // "DRAFT", "PUBLISHED", "UNPUBLISHED"
     
     private String lastUpdatedBy = "Admin";

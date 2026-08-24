@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
@@ -16,12 +17,15 @@ public class OcrResult {
     @Id
     private String id;
 
+    @Indexed
     private String userId;
+    @Indexed
     private String requirementId;
     private String documentType; // NRIC, FIN, Passport, AddressProof, Bizfile, CertIncorporation, Constitution
     private String fieldPath; // e.g., "directors[0].docs.idDoc"
     private String fileName;
     private String fileBase64Preview; // small thumbnail base64
+    @Indexed
     private String status; // UPLOADING, PROCESSING, COMPLETE, FAILED
     private Double confidence; // 0.0 - 1.0
     private Map<String, Object> extractedFields;

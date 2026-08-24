@@ -1037,13 +1037,27 @@ public class MigratedEndpointsController {
     public ResponseEntity<List<Map<String, Object>>> getConversations() {
         List<Message> allMessages = messageRepository.findAll();
         Map<String, Message> latestMessagePerClient = new HashMap<>();
+        Map<String, Integer> unreadCountPerClient = new HashMap<>();
 
         for (Message m : allMessages) {
             if (m.getClientId() == null) continue;
             if (m.getClientId().startsWith("team_chat_") || m.getClientId().startsWith("team_group_")) continue;
+
             Message existing = latestMessagePerClient.get(m.getClientId());
             if (existing == null || m.getTimestamp() > existing.getTimestamp()) {
                 latestMessagePerClient.put(m.getClientId(), m);
+            }
+
+            if ("client".equalsIgnoreCase(m.getSenderRole()) && (m.getIsRead() == null || !m.getIsRead())) {
+                unreadCountPerClient.put(m.getClientId(), unreadCountPerClient.getOrDefault(m.getClientId(), 0) + 1);
+            }
+        }
+
+        List<User> allUsers = userRepository.findAll();
+        Map<String, User> userMap = new HashMap<>();
+        for (User u : allUsers) {
+            if (u.getId() != null) {
+                userMap.put(u.getId(), u);
             }
         }
 
@@ -1052,39 +1066,41 @@ public class MigratedEndpointsController {
             String clientId = entry.getKey();
             Message latestMsg = entry.getValue();
 
-            Map<String, Object> conv = new HashMap<>();
-            conv.put("clientId", clientId);
-
-            Optional<User> userOpt = userRepository.findById(clientId);
-            if (!userOpt.isPresent() || (!"CLIENT".equalsIgnoreCase(userOpt.get().getRole()) && !"USER".equalsIgnoreCase(userOpt.get().getRole()))) {
+            User userOpt = userMap.get(clientId);
+            if (userOpt == null || (!"CLIENT".equalsIgnoreCase(userOpt.getRole()) && !"USER".equalsIgnoreCase(userOpt.getRole()))) {
                 continue;
             }
-            String clientName = userOpt.map(this::formatUserName).orElse("Unknown");
-            conv.put("clientName", clientName);
-            conv.put("lastMessage", latestMsg.getText());
-            conv.put("lastMessageTime", latestMsg.getTimestamp());
-            
-            // Calculate actual unread count
-            int unreadCount = 0;
-            List<Message> msgs = messageRepository.findByClientId(clientId);
-            for (Message m : msgs) {
-                if ("client".equals(m.getSenderRole()) && (m.getIsRead() == null || !m.getIsRead())) {
-                    unreadCount++;
-                }
-            }
-            conv.put("unreadCount", unreadCount);
 
-            // Add presence status
-            boolean isOnline = chatWebSocketHandler.isUserOnline(clientId);
-            conv.put("isOnline", isOnline);
-            userOpt.ifPresent(u -> conv.put("lastSeen", u.getLastSeenTime()));
+            Map<String, Object> conv = new HashMap<>();
+            conv.put("clientId", clientId);
+            conv.put("clientName", formatUserName(userOpt));
+            conv.put("lastMessage", extractCleanText(latestMsg.getText()));
+            conv.put("lastMessageTime", latestMsg.getTimestamp());
+            conv.put("unreadCount", unreadCountPerClient.getOrDefault(clientId, 0));
+            conv.put("isOnline", chatWebSocketHandler.isUserOnline(clientId));
+            conv.put("lastSeen", userOpt.getLastSeenTime());
 
             conversations.add(conv);
         }
 
-        // Sort by lastMessageTime descending
         conversations.sort((a, b) -> Long.compare((Long) b.get("lastMessageTime"), (Long) a.get("lastMessageTime")));
         return ResponseEntity.ok(conversations);
+    }
+
+    private String extractCleanText(String text) {
+        if (text == null) return "";
+        String trimmed = text.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            int textIdx = trimmed.indexOf("\"text\":\"");
+            if (textIdx != -1) {
+                int start = textIdx + 8;
+                int end = trimmed.indexOf("\"", start);
+                if (end != -1) {
+                    return trimmed.substring(start, end);
+                }
+            }
+        }
+        return text;
     }
 
     @PostMapping("/messages/read-all")

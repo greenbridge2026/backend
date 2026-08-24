@@ -3,6 +3,7 @@ package com.globalisor.backend.model;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -11,9 +12,11 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class Compliance {
     @Id
     private String id;
+    @Indexed
     private String clientId;
     private String name;
     private String type;
+    @Indexed
     private String status = "pending";
     private String risk = "Low";
     private Long lastUpdated = System.currentTimeMillis();
