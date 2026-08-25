@@ -11,6 +11,7 @@ import com.globalisor.backend.repository.RequirementRepository;
 import com.globalisor.backend.repository.UserRepository;
 import com.globalisor.backend.service.DocumentGenerationService;
 import com.globalisor.backend.service.DocumentGenerationService.NomineeAppointmentDocumentData;
+import com.globalisor.backend.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -47,6 +48,10 @@ public class BusinessIntelligenceController {
 
     @Autowired
     private ChatThreadRepository chatThreadRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
 
     /**
      * Entity resolution priority:
@@ -114,7 +119,9 @@ public class BusinessIntelligenceController {
 
         // 2. Context memory fallback: If query did NOT mention any company, match companyHint from thread memory
         if (companyHint != null && !companyHint.trim().isEmpty()) {
-            String cleanHint = companyHint.toLowerCase().trim();
+            String rawHint = companyHint.toLowerCase().trim();
+            String alphaHint = rawHint.replaceAll("[^a-z0-9]", "");
+
             for (Requirement r : reqs) {
                 Map<String, Object> data = r.getData();
                 if (data == null) continue;
@@ -125,12 +132,14 @@ public class BusinessIntelligenceController {
                     if (cNameObj != null) {
                         String cName = cNameObj.toString().toLowerCase().trim();
                         String simplifiedName = cName.replace("pte. ltd.", "").replace("pte ltd", "").trim();
-                        if (cName.contains(cleanHint) || cleanHint.contains(simplifiedName) || simplifiedName.contains(cleanHint)) {
+                        String alphaCName = cName.replaceAll("[^a-z0-9]", "");
+                        if (cName.contains(rawHint) || rawHint.contains(simplifiedName) || simplifiedName.contains(rawHint) ||
+                            (!alphaHint.isEmpty() && !alphaCName.isEmpty() && (alphaCName.contains(alphaHint) || alphaHint.contains(alphaCName)))) {
                             return r;
                         }
                     }
                 }
-                if (r.getUserId() != null && r.getUserId().equalsIgnoreCase(companyHint.trim())) {
+                if (r.getUserId() != null && (r.getUserId().equalsIgnoreCase(rawHint) || r.getUserId().toLowerCase().contains(rawHint) || rawHint.contains(r.getUserId().toLowerCase()))) {
                     return r;
                 }
             }
@@ -818,4 +827,68 @@ public class BusinessIntelligenceController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    @PostMapping("/submit-address-change")
+    public ResponseEntity<Map<String, Object>> submitAddressChange(@RequestBody Map<String, Object> payload) {
+        log.info("Processing Client Change of Registered Address Request: {}", payload);
+        Map<String, Object> response = new HashMap<>();
+
+        String userId = payload.get("userId") != null ? payload.get("userId").toString() : "client";
+        String companyName = payload.get("companyName") != null ? payload.get("companyName").toString() : "";
+        String newAddress = payload.get("newAddress") != null ? payload.get("newAddress").toString() : "";
+        String effectiveDate = payload.get("effectiveDate") != null ? payload.get("effectiveDate").toString() : "Date of Resolution";
+        String officeHours = payload.get("officeHours") != null ? payload.get("officeHours").toString() : "No change";
+        String addressProofDoc = payload.get("addressProofDoc") != null ? payload.get("addressProofDoc").toString() : "Attached Document";
+
+        List<Requirement> reqs = requirementRepository.findAll();
+        Requirement match = findMatchingRequirement(reqs, companyName, companyName);
+
+        NomineeAppointmentDocumentData docData = documentGenerationService.createDocumentDataFromRequirement(match, "change_of_address", "change_of_address");
+        if (docData != null) {
+            String resolvedCompName = (companyName != null && !companyName.trim().isEmpty() && !"Client Company".equalsIgnoreCase(companyName)) 
+                    ? companyName.trim() : (docData.getCompanyName() != null ? docData.getCompanyName() : "3B Trading & Consulting Pte. Ltd.");
+            docData.setCompanyName(resolvedCompName);
+            if (newAddress != null && !newAddress.trim().isEmpty()) {
+                docData.setNewAddress(newAddress.trim());
+            }
+            if (effectiveDate != null && !effectiveDate.trim().isEmpty()) {
+                docData.setEffectiveDate(effectiveDate.trim());
+            }
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("companyName", resolvedCompName);
+            updates.put("newAddress", docData.getNewAddress());
+            updates.put("effectiveDate", docData.getEffectiveDate());
+            documentGenerationService.updateDocumentData(docData.getId(), updates);
+        }
+
+        String reqId = docData != null ? docData.getId() : ("req-" + System.currentTimeMillis());
+        String displayCompName = (docData != null && docData.getCompanyName() != null) ? docData.getCompanyName() : (companyName.isEmpty() ? userId : companyName);
+
+        if (notificationService != null) {
+            try {
+                String notifMsg = "Client entity (" + displayCompName + ") requested Change of Registered Address:\n• New Address: " + newAddress + "\n• Effective Date: " + effectiveDate + "\n• Hours: " + officeHours + "\n• Proof: " + addressProofDoc;
+                notificationService.sendNotification("admin",
+                        "📍 Change of Address Request: " + displayCompName,
+                        notifMsg,
+                        "CHANGE_OF_ADDRESS_REQUEST",
+                        reqId,
+                        "High",
+                        "chat_request");
+            } catch (Exception e) {
+                log.warn("Could not broadcast notification to admin: {}", e.getMessage());
+            }
+        }
+
+        response.put("status", "SUCCESS");
+        response.put("message", "Change of registered office address request submitted to Admin for review and resolution generation.");
+        response.put("docId", reqId);
+        response.put("newAddress", newAddress);
+        response.put("effectiveDate", effectiveDate);
+        response.put("officeHours", officeHours);
+        response.put("addressProofDoc", addressProofDoc);
+
+        return ResponseEntity.ok(response);
+    }
 }
+
+

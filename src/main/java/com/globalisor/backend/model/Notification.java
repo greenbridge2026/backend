@@ -27,6 +27,7 @@ public class Notification {
     @Indexed
     private String type;
     private String relatedId;
+    private String link;
     private String priority = "Info"; // Info, Warning, Critical
     @Indexed
     private Long timestamp = System.currentTimeMillis();

@@ -18,6 +18,10 @@ public class NotificationService {
     private ChatWebSocketHandler chatWebSocketHandler;
 
     public void sendNotification(String targetClientId, String title, String message, String type, String relatedId, String priority) {
+        sendNotification(targetClientId, title, message, type, relatedId, priority, null);
+    }
+
+    public void sendNotification(String targetClientId, String title, String message, String type, String relatedId, String priority, String link) {
         Notification notif = new Notification();
         notif.setId("notif-" + System.currentTimeMillis());
         notif.setClientId(targetClientId);
@@ -25,6 +29,7 @@ public class NotificationService {
         notif.setMessage(message);
         notif.setType(type);
         notif.setRelatedId(relatedId);
+        notif.setLink(link);
         notif.setPriority(priority != null ? priority : "Info");
         notif.setTimestamp(System.currentTimeMillis());
         notif.setReadBy(new ArrayList<>());

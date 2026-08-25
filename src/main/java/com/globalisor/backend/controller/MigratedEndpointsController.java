@@ -896,7 +896,8 @@ public class MigratedEndpointsController {
             Set<String> targets = new HashSet<>();
             targets.add("all");
             targets.add(targetId);
-            if (targetId.equals("admin") || targetId.startsWith("staff") || targetId.equals("staff-admin")) {
+            String lowerTarget = targetId.toLowerCase();
+            if (lowerTarget.contains("admin") || lowerTarget.contains("staff") || lowerTarget.equals("all")) {
                 targets.add("admin");
                 targets.add("staff");
                 targets.add("staff-admin");
