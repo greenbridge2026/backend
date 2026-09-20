@@ -629,7 +629,7 @@ public class AdminController {
     }
 
     @GetMapping("/admin/staff")
-    public ResponseEntity<?> getStaffList() {
+    public ResponseEntity<?> getStaff() {
         List<User> users = userRepository.findAll();
         List<Map<String, Object>> staffList = new ArrayList<>();
         for (User u : users) {
