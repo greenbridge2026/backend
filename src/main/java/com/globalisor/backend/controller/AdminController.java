@@ -229,7 +229,7 @@ public class AdminController {
             requirement.setId("SRV-" + System.currentTimeMillis());
             requirement.setUserId(id);
             requirement.setStatus("approved");
-            requirement.setStaff("Sarah Lim");
+            requirement.setStaff("Unassigned");
         }
 
         Map<String, Object> data = requirement.getData() != null ? requirement.getData() : new HashMap<>();
@@ -298,7 +298,7 @@ public class AdminController {
             requirement.setId("SRV-" + System.currentTimeMillis());
             requirement.setUserId(id);
             requirement.setStatus("approved");
-            requirement.setStaff("Sarah Lim");
+            requirement.setStaff("Unassigned");
         }
 
         Map<String, Object> data = requirement.getData() != null ? requirement.getData() : new HashMap<>();
@@ -680,8 +680,39 @@ public class AdminController {
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        
+        User staffUser = userOpt.get();
+        String staffName = ((staffUser.getFirstName() != null ? staffUser.getFirstName() : "") + " " + (staffUser.getLastName() != null ? staffUser.getLastName() : "")).trim();
+
         userRepository.deleteById(id);
+
+        // Clean up client assignments referencing deleted staff
+        List<User> allClients = userRepository.findAll().stream()
+                .filter(u -> !"STAFF".equalsIgnoreCase(u.getRole()) && !"ADMIN".equalsIgnoreCase(u.getRole()))
+                .collect(Collectors.toList());
+
+        for (User client : allClients) {
+            boolean changed = false;
+            if (client.getAssignedStaffId() != null && client.getAssignedStaffId().contains(id)) {
+                List<String> ids = Arrays.stream(client.getAssignedStaffId().split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.equalsIgnoreCase(id) && !s.isEmpty())
+                        .collect(Collectors.toList());
+                client.setAssignedStaffId(ids.isEmpty() ? null : String.join(", ", ids));
+                changed = true;
+            }
+            if (client.getAssignedStaffName() != null && !staffName.isEmpty() && client.getAssignedStaffName().toLowerCase().contains(staffName.toLowerCase())) {
+                List<String> names = Arrays.stream(client.getAssignedStaffName().split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.equalsIgnoreCase(staffName) && !s.isEmpty() && !s.equalsIgnoreCase("Unassigned"))
+                        .collect(Collectors.toList());
+                client.setAssignedStaffName(names.isEmpty() ? null : String.join(", ", names));
+                changed = true;
+            }
+            if (changed) {
+                userRepository.save(client);
+            }
+        }
+
         return ResponseEntity.ok().build();
     }
 
@@ -971,7 +1002,7 @@ public class AdminController {
         req.setId("SRV-" + System.currentTimeMillis());
         req.setUserId(client.getId());
         req.setStatus("approved");
-        req.setStaff("Sarah Lim");
+        req.setStaff("Unassigned");
         Map<String, Object> data = new HashMap<>();
         data.put("names", Arrays.asList(client.getCompanyName()));
         data.put("serviceType", "Company Incorporation");
@@ -1156,18 +1187,6 @@ public class AdminController {
                     return map;
                 })
                 .collect(Collectors.toList());
-
-        // Ensure default specialist Sarah Lim is present if no staff exist
-        if (staffList.isEmpty() || staffList.stream().noneMatch(s -> "Sarah Lim".equalsIgnoreCase((String) s.get("name")))) {
-            Map<String, Object> defaultStaff = new HashMap<>();
-            defaultStaff.put("id", "usr-staff");
-            defaultStaff.put("name", "Sarah Lim");
-            defaultStaff.put("email", "staff@globalisor.com");
-            defaultStaff.put("department", "Corporate Secretarial & Incorporation");
-            defaultStaff.put("designation", "Senior Operations Specialist");
-            defaultStaff.put("onlineStatus", "ONLINE");
-            staffList.add(0, defaultStaff);
-        }
 
         return ResponseEntity.ok(staffList);
     }
