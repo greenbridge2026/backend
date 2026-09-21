@@ -1151,20 +1151,41 @@ public class AdminController {
     @DeleteMapping("/admin/clients/{id}")
     public ResponseEntity<?> deleteClient(@PathVariable String id) {
         Optional<User> userOpt = userRepository.findById(id);
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findAll().stream()
+                    .filter(u -> u.getId() != null && u.getId().equalsIgnoreCase(id))
+                    .findFirst();
+        }
         if (userOpt.isEmpty()) return ResponseEntity.notFound().build();
 
-        userRepository.deleteById(id);
+        String actualId = userOpt.get().getId();
+        userRepository.deleteById(actualId);
 
         // Delete associated records
         List<Requirement> reqs = requirementRepository.findAll();
         for (Requirement r : reqs) {
-            if (r.getUserId() != null && r.getUserId().equalsIgnoreCase(id)) {
+            if (r.getUserId() != null && (r.getUserId().equalsIgnoreCase(actualId) || r.getUserId().equalsIgnoreCase(id))) {
                 requirementRepository.deleteById(r.getId());
             }
         }
+        onboardingRepository.findByClientId(actualId).ifPresent(ob -> onboardingRepository.deleteById(ob.getId()));
         onboardingRepository.findByClientId(id).ifPresent(ob -> onboardingRepository.deleteById(ob.getId()));
+        kycRepository.findByClientId(actualId).ifPresent(k -> kycRepository.deleteById(k.getId()));
         kycRepository.findByClientId(id).ifPresent(k -> kycRepository.deleteById(k.getId()));
+        complianceRepository.findByClientId(actualId).ifPresent(c -> complianceRepository.deleteById(c.getId()));
         complianceRepository.findByClientId(id).ifPresent(c -> complianceRepository.deleteById(c.getId()));
+        if (clientDocumentRepository != null) {
+            clientDocumentRepository.findByClientId(actualId).forEach(d -> clientDocumentRepository.deleteById(d.getId()));
+            if (!actualId.equalsIgnoreCase(id)) {
+                clientDocumentRepository.findByClientId(id).forEach(d -> clientDocumentRepository.deleteById(d.getId()));
+            }
+        }
+        if (messageRepository != null) {
+            messageRepository.findByClientId(actualId).forEach(m -> messageRepository.deleteById(m.getId()));
+            if (!actualId.equalsIgnoreCase(id)) {
+                messageRepository.findByClientId(id).forEach(m -> messageRepository.deleteById(m.getId()));
+            }
+        }
 
         return ResponseEntity.ok(Map.of("success", true, "message", "Client deleted successfully."));
     }
