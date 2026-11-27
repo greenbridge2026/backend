@@ -677,6 +677,18 @@ public class ComplianceBoxService {
             if (dispId != null && (dispId.equalsIgnoreCase(trimmed) || dispId.replace("APP-", "").equalsIgnoreCase(cleanId))) {
                 return requirementRepository.findById(req.getId()).orElse(req);
             }
+
+            // Suffix and hex check
+            String rawId = req.getId() != null ? req.getId().trim() : "";
+            if (rawId.matches("^[0-9a-fA-F]{24}$")) {
+                String last4 = rawId.substring(rawId.length() - 4);
+                if (trimmed.equalsIgnoreCase("APP-" + last4) || (!cleanId.isEmpty() && last4.equalsIgnoreCase(cleanId))) {
+                    return requirementRepository.findById(req.getId()).orElse(req);
+                }
+            }
+            if (!cleanId.isEmpty() && cleanId.length() >= 4 && rawId.toLowerCase().endsWith(cleanId.toLowerCase())) {
+                return requirementRepository.findById(req.getId()).orElse(req);
+            }
         }
         return null;
     }

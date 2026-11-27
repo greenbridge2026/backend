@@ -1804,13 +1804,27 @@ public class MigratedEndpointsController {
     private Map<String, Object> sanitizeSummaryData(Map<String, Object> data) {
         if (data == null) return new HashMap<>();
         Map<String, Object> summary = new HashMap<>();
-        if (data.containsKey("names")) summary.put("names", data.get("names"));
+        if (data.containsKey("names") && data.get("names") instanceof List && !((List<?>) data.get("names")).isEmpty()) {
+            summary.put("names", data.get("names"));
+        } else if (data.containsKey("companyName") && data.get("companyName") != null && !String.valueOf(data.get("companyName")).trim().isEmpty()) {
+            List<String> derived = new ArrayList<>();
+            derived.add(String.valueOf(data.get("companyName")).trim());
+            if (data.containsKey("alternativeCompanyName1") && data.get("alternativeCompanyName1") != null && !String.valueOf(data.get("alternativeCompanyName1")).trim().isEmpty()) {
+                derived.add(String.valueOf(data.get("alternativeCompanyName1")).trim());
+            }
+            if (data.containsKey("alternativeCompanyName2") && data.get("alternativeCompanyName2") != null && !String.valueOf(data.get("alternativeCompanyName2")).trim().isEmpty()) {
+                derived.add(String.valueOf(data.get("alternativeCompanyName2")).trim());
+            }
+            summary.put("names", derived);
+        }
         if (data.containsKey("nameChecks")) summary.put("nameChecks", data.get("nameChecks"));
         if (data.containsKey("companySuffix")) summary.put("companySuffix", data.get("companySuffix"));
         if (data.containsKey("journeyType")) summary.put("journeyType", data.get("journeyType"));
         if (data.containsKey("priority")) summary.put("priority", data.get("priority"));
         if (data.containsKey("deadline")) summary.put("deadline", data.get("deadline"));
         if (data.containsKey("companyName")) summary.put("companyName", data.get("companyName"));
+        if (data.containsKey("alternativeCompanyName1")) summary.put("alternativeCompanyName1", data.get("alternativeCompanyName1"));
+        if (data.containsKey("alternativeCompanyName2")) summary.put("alternativeCompanyName2", data.get("alternativeCompanyName2"));
         if (data.containsKey("activities")) summary.put("activities", data.get("activities"));
         if (data.containsKey("primarySsic")) summary.put("primarySsic", data.get("primarySsic"));
         if (data.containsKey("secondarySsic")) summary.put("secondarySsic", data.get("secondarySsic"));

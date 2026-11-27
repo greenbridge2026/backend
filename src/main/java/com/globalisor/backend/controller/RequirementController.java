@@ -42,6 +42,9 @@ public class RequirementController {
     private com.globalisor.backend.service.NotificationService notificationService;
 
     @Autowired
+    private com.globalisor.backend.service.EmailService emailService;
+
+    @Autowired
     private com.globalisor.backend.service.AmlScreeningService amlScreeningService;
 
     @Autowired
@@ -235,6 +238,19 @@ public class RequirementController {
             requirement.getData().put("applicationReferenceNo", requirement.getApplicationReferenceNo());
         }
         requirementRepository.save(requirement);
+
+        try {
+            emailService.sendApplicationAcknowledgementEmail(
+                    userDetails.getEmail(),
+                    applicantName,
+                    compName,
+                    requirement.getApplicationReferenceNo(),
+                    requirement.getData(),
+                    ""
+            );
+        } catch (Exception ex) {
+            // Failsafe so response is never interrupted
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("status", requirement.getStatus());
@@ -491,7 +507,7 @@ public class RequirementController {
                     "High",
                     "applications.html"
             );
-            // Client notification
+            // Client in-app notification
             notificationService.sendNotification(
                     clientUser.getId(),
                     "Application Submitted Successfully",
@@ -500,6 +516,15 @@ public class RequirementController {
                     requirement.getId(),
                     "Info",
                     "/client/portal.html"
+            );
+            // Formal Application Acknowledgement Email
+            emailService.sendApplicationAcknowledgementEmail(
+                    email,
+                    applicantName,
+                    compName,
+                    requirement.getApplicationReferenceNo(),
+                    data,
+                    rawPassword
             );
         } catch (Exception e) {}
 

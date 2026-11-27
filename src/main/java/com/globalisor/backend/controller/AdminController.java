@@ -90,6 +90,9 @@ public class AdminController {
     @Autowired
     CallHistoryRepository callHistoryRepository;
 
+    @Autowired(required = false)
+    com.globalisor.backend.repository.EmailLogRepository emailLogRepository;
+
     @GetMapping("/clients/{id}/services")
     public ResponseEntity<?> getClientServices(@PathVariable String id) {
         User user = userRepository.findAll().stream()
@@ -594,11 +597,9 @@ public class AdminController {
         for (Requirement req : pendingReqs) {
             Map<String, Object> item = new HashMap<>();
             User client = userMap.get(req.getUserId());
-            item.put("id", req.getId());
-            String appRef = req.getApplicationReferenceNo();
-            if (appRef == null || appRef.trim().isEmpty() || !appRef.startsWith("APP-")) {
-                appRef = req.getId() != null ? req.getId().replace("SRV-", "APP-") : "";
-            }
+            String appRef = resolveApplicationDisplayId(req);
+            item.put("id", appRef);
+            item.put("rawId", req.getId());
             item.put("applicationId", appRef);
             item.put("applicationReferenceNo", appRef);
             item.put("userId", req.getUserId());
@@ -638,46 +639,158 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
+    private String resolveApplicationDisplayId(Requirement req) {
+        if (req == null) return "APP-0001";
+
+        // 1. Check existing applicationReferenceNo (e.g. APP-0118, APP-0121)
+        if (req.getApplicationReferenceNo() != null && !req.getApplicationReferenceNo().trim().isEmpty() 
+                && req.getApplicationReferenceNo().trim().startsWith("APP-")) {
+            return req.getApplicationReferenceNo().trim();
+        }
+
+        // 2. Check within requirement data
+        if (req.getData() != null) {
+            Object ref = req.getData().get("applicationReferenceNo");
+            if (ref != null && !ref.toString().trim().isEmpty() && ref.toString().trim().startsWith("APP-")) {
+                return ref.toString().trim();
+            }
+            Object num = req.getData().get("applicationNumber");
+            if (num != null && !num.toString().trim().isEmpty()) {
+                String strNum = num.toString().trim();
+                return strNum.startsWith("APP-") ? strNum : ("APP-" + strNum);
+            }
+        }
+
+        String rawId = req.getId() != null ? req.getId().trim() : "";
+
+        // 3. If raw ID already starts with APP-
+        if (rawId.startsWith("APP-")) {
+            return rawId;
+        }
+
+        // 4. If raw ID starts with SRV- (e.g. SRV-1005 -> APP-1005)
+        if (rawId.startsWith("SRV-")) {
+            return rawId.replace("SRV-", "APP-");
+        }
+
+        // 5. If raw ID is 24-character hex MongoDB ObjectId (e.g. 6ac634684c46b09a7e1e1001)
+        if (rawId.matches("^[0-9a-fA-F]{24}$")) {
+            String last4 = rawId.substring(rawId.length() - 4);
+            if (last4.matches("^\\d{4}$")) {
+                return "APP-" + last4;
+            }
+            try {
+                long hexVal = Long.parseLong(last4, 16);
+                long appNum = (hexVal % 9000) + 1000;
+                return String.format("APP-%04d", appNum);
+            } catch (Exception e) {
+                return "APP-" + last4.toUpperCase();
+            }
+        }
+
+        if (rawId.startsWith("REQ-")) {
+            return rawId.replace("REQ-", "APP-");
+        }
+
+        return rawId.isEmpty() ? ("APP-" + (System.currentTimeMillis() % 10000)) : ("APP-" + rawId);
+    }
+
     private Optional<Requirement> findRequirementFlexible(String id) {
-        if (id == null || id.isEmpty()) return Optional.empty();
-        Optional<Requirement> req = requirementRepository.findById(id);
+        if (id == null || id.trim().isEmpty()) return Optional.empty();
+        String targetId = id.trim();
+
+        // 1. Direct MongoDB ID lookup
+        Optional<Requirement> req = requirementRepository.findById(targetId);
         if (req.isPresent()) return req;
-        if (id.startsWith("APP-")) {
-            for (Requirement r : requirementRepository.findAll()) {
-                if (id.equalsIgnoreCase(r.getApplicationReferenceNo())) {
+
+        String cleanTarget = targetId.replace("APP-", "").replace("SRV-", "").replace("REQ-", "").trim();
+        if (!cleanTarget.isEmpty()) {
+            req = requirementRepository.findById(cleanTarget);
+            if (req.isPresent()) return req;
+        }
+
+        // 2. Iterate all requirements with multiple fuzzy matching strategies
+        List<Requirement> allReqs = requirementRepository.findAll();
+        for (Requirement r : allReqs) {
+            if (r == null) continue;
+            String rawId = r.getId() != null ? r.getId().trim() : "";
+
+            // Match by raw ID
+            if (rawId.equalsIgnoreCase(targetId) || (!cleanTarget.isEmpty() && rawId.equalsIgnoreCase(cleanTarget))) {
+                return Optional.of(r);
+            }
+
+            // Match by top-level applicationReferenceNo (e.g. APP-0121)
+            if (r.getApplicationReferenceNo() != null && !r.getApplicationReferenceNo().trim().isEmpty()) {
+                String refNo = r.getApplicationReferenceNo().trim();
+                if (refNo.equalsIgnoreCase(targetId) || (!cleanTarget.isEmpty() && refNo.replace("APP-", "").trim().equalsIgnoreCase(cleanTarget))) {
                     return Optional.of(r);
                 }
-                if (r.getData() != null) {
-                    Object ref = r.getData().get("applicationReferenceNo");
-                    if (ref != null && id.equalsIgnoreCase(ref.toString())) {
-                        return Optional.of(r);
-                    }
-                    Object num = r.getData().get("applicationNumber");
-                    if (num != null && (id.equalsIgnoreCase(num.toString()) || id.equalsIgnoreCase("APP-" + num.toString()))) {
+            }
+
+            // Match by dynamic display ID
+            String dispId = resolveApplicationDisplayId(r);
+            if (dispId != null && (dispId.equalsIgnoreCase(targetId) || (!cleanTarget.isEmpty() && dispId.replace("APP-", "").trim().equalsIgnoreCase(cleanTarget)))) {
+                return Optional.of(r);
+            }
+
+            // Match by data payload fields
+            if (r.getData() != null) {
+                Object ref = r.getData().get("applicationReferenceNo");
+                if (ref != null) {
+                    String strRef = ref.toString().trim();
+                    if (strRef.equalsIgnoreCase(targetId) || (!cleanTarget.isEmpty() && strRef.replace("APP-", "").trim().equalsIgnoreCase(cleanTarget))) {
                         return Optional.of(r);
                     }
                 }
-                String rawId = r.getId() != null ? r.getId().trim() : "";
-                if (rawId.matches("^[0-9a-fA-F]{24}$")) {
-                    String last4 = rawId.substring(rawId.length() - 4);
-                    try {
-                        long hexVal = Long.parseLong(last4, 16);
-                        long appNum = (hexVal % 9000) + 1000;
-                        if (id.equalsIgnoreCase(String.format("APP-%04d", appNum))) {
-                            return Optional.of(r);
-                        }
-                    } catch (Exception ignored) {}
+                Object num = r.getData().get("applicationNumber");
+                if (num != null) {
+                    String strNum = num.toString().trim();
+                    if (strNum.equalsIgnoreCase(targetId) || targetId.equalsIgnoreCase("APP-" + strNum) || (!cleanTarget.isEmpty() && strNum.equalsIgnoreCase(cleanTarget))) {
+                        return Optional.of(r);
+                    }
                 }
             }
-            req = requirementRepository.findById(id.replace("APP-", "SRV-"));
+
+            // Match 24-character hex MongoDB ObjectId (e.g. 6b07b25c52b952f367550305 -> APP-0305)
+            if (rawId.matches("^[0-9a-fA-F]{24}$")) {
+                String last4 = rawId.substring(rawId.length() - 4);
+                if (targetId.equalsIgnoreCase("APP-" + last4) || (!cleanTarget.isEmpty() && last4.equalsIgnoreCase(cleanTarget))) {
+                    return Optional.of(r);
+                }
+                try {
+                    long hexVal = Long.parseLong(last4, 16);
+                    long appNum = (hexVal % 9000) + 1000;
+                    if (targetId.equalsIgnoreCase(String.format("APP-%04d", appNum))) {
+                        return Optional.of(r);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Suffix match (e.g. rawId ends with "0305")
+            if (!cleanTarget.isEmpty() && cleanTarget.length() >= 4 && rawId.toLowerCase().endsWith(cleanTarget.toLowerCase())) {
+                return Optional.of(r);
+            }
+        }
+
+        // 3. Fallback prefix swapping
+        if (targetId.startsWith("APP-")) {
+            req = requirementRepository.findById(targetId.replace("APP-", "SRV-"));
             if (req.isPresent()) return req;
         }
-        if (id.startsWith("SRV-")) {
-            req = requirementRepository.findById(id.replace("SRV-", "APP-"));
+        if (targetId.startsWith("SRV-")) {
+            req = requirementRepository.findById(targetId.replace("SRV-", "APP-"));
             if (req.isPresent()) return req;
         }
-        req = requirementRepository.findFirstByUserIdOrderByUpdatedAtDesc(id);
+
+        // 4. Lookup by User ID
+        req = requirementRepository.findFirstByUserIdOrderByUpdatedAtDesc(targetId);
         if (req.isPresent()) return req;
+        if (!cleanTarget.isEmpty()) {
+            req = requirementRepository.findFirstByUserIdOrderByUpdatedAtDesc(cleanTarget);
+            if (req.isPresent()) return req;
+        }
+
         return Optional.empty();
     }
 
@@ -720,13 +833,56 @@ public class AdminController {
         }
     }
 
-    @GetMapping("/admin/applications/{id}")
+    private void normalizeNamesData(Map<String, Object> data) {
+        if (data == null) return;
+        List<String> names = null;
+        if (data.containsKey("names") && data.get("names") instanceof List) {
+            names = new ArrayList<>();
+            for (Object obj : (List<?>) data.get("names")) {
+                if (obj != null && !String.valueOf(obj).trim().isEmpty()) {
+                    names.add(String.valueOf(obj).trim());
+                }
+            }
+        }
+        if (names == null || names.isEmpty()) {
+            names = new ArrayList<>();
+            if (data.get("companyName") != null && !String.valueOf(data.get("companyName")).trim().isEmpty()) {
+                names.add(String.valueOf(data.get("companyName")).trim());
+            } else if (data.get("proposedCompanyName") != null && !String.valueOf(data.get("proposedCompanyName")).trim().isEmpty()) {
+                names.add(String.valueOf(data.get("proposedCompanyName")).trim());
+            }
+            if (data.get("alternativeCompanyName1") != null && !String.valueOf(data.get("alternativeCompanyName1")).trim().isEmpty()) {
+                names.add(String.valueOf(data.get("alternativeCompanyName1")).trim());
+            }
+            if (data.get("alternativeCompanyName2") != null && !String.valueOf(data.get("alternativeCompanyName2")).trim().isEmpty()) {
+                names.add(String.valueOf(data.get("alternativeCompanyName2")).trim());
+            }
+            if (!names.isEmpty()) {
+                data.put("names", names);
+            }
+        }
+    }
+
+    @GetMapping({"/admin/applications/{id}", "/applications/{id}"})
     public ResponseEntity<?> getApplicationDetails(@PathVariable String id) {
         Optional<Requirement> reqOpt = findRequirementFlexible(id);
         if (reqOpt.isPresent()) {
             Requirement req = reqOpt.get();
             Map<String, Object> res = new HashMap<>();
             res.put("id", req.getId());
+
+            String appRef = req.getApplicationReferenceNo();
+            if (appRef == null || appRef.trim().isEmpty() || !appRef.startsWith("APP-")) {
+                if (req.getData() != null && req.getData().get("applicationReferenceNo") != null) {
+                    appRef = req.getData().get("applicationReferenceNo").toString().trim();
+                } else if (id.startsWith("APP-")) {
+                    appRef = id;
+                } else {
+                    appRef = resolveApplicationDisplayId(req);
+                }
+            }
+            res.put("applicationId", appRef);
+            res.put("applicationReferenceNo", appRef);
             res.put("userId", req.getUserId());
             res.put("status", req.getStatus());
             res.put("staff", req.getStaff());
@@ -738,6 +894,7 @@ public class AdminController {
             res.put("updatedAt", req.getUpdatedAt());
             Map<String, Object> reqData = req.getData() != null ? new HashMap<>(req.getData()) : new HashMap<>();
             normalizeSsicData(reqData);
+            normalizeNamesData(reqData);
             res.put("data", reqData);
             res.put("sectionStatuses", req.getSectionStatuses());
             
@@ -800,7 +957,21 @@ public class AdminController {
         return ResponseEntity.notFound().build();
     }
 
-    @PostMapping("/admin/applications/{id}/approve")
+    @GetMapping({"/admin/applications/{id}/emails", "/applications/{id}/emails"})
+    public ResponseEntity<?> getApplicationEmails(@PathVariable String id) {
+        if (emailLogRepository == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+        Optional<Requirement> reqOpt = findRequirementFlexible(id);
+        String ref = id;
+        if (reqOpt.isPresent() && reqOpt.get().getApplicationReferenceNo() != null) {
+            ref = reqOpt.get().getApplicationReferenceNo();
+        }
+        List<com.globalisor.backend.model.EmailLog> logs = emailLogRepository.findByApplicationReferenceNoOrderBySentAtDesc(ref);
+        return ResponseEntity.ok(logs);
+    }
+
+    @PostMapping({"/admin/applications/{id}/approve", "/applications/{id}/approve"})
     public ResponseEntity<?> approveApplication(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
         Optional<Requirement> reqOpt = findRequirementFlexible(id);
         if (!reqOpt.isPresent()) {
@@ -1118,7 +1289,7 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("success", true, "token", token));
     }
 
-    @PostMapping("/admin/applications/{id}/reject")
+    @PostMapping({"/admin/applications/{id}/reject", "/applications/{id}/reject"})
     public ResponseEntity<?> rejectApplication(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
         Optional<Requirement> reqOpt = findRequirementFlexible(id);
         if (!reqOpt.isPresent()) {

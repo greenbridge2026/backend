@@ -37,6 +37,11 @@ gcp-key.json
 gcp-key-prod.json
 *.json
 
+### Environment & Secrets ###
+.env
+.env.*
+*.env
+
 ### Migration Scripts ###
 migrate_zip_documents.py
 

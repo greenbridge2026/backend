@@ -68,14 +68,9 @@ public class NameCheckController {
             boolean isLive = hit.isLive();
             response.put("status", "taken");
             String statusMsg = isLive
-                    ? String.format("This name is already registered in ACRA as an active entity (%s • UEN: %s).",
-                    hit.getEntityName(), hit.getUen())
-                    : String.format("This name was previously registered with ACRA (%s • UEN: %s • %s). ACRA name restrictions apply.",
-                    hit.getEntityName(), hit.getUen(), hit.getUenStatus());
+                    ? "This company name is already registered and is unavailable for reservation."
+                    : "This company name was previously registered in Singapore and is unavailable.";
             response.put("message", statusMsg);
-            response.put("matchedUen", hit.getUen());
-            response.put("matchedEntityName", hit.getEntityName());
-            response.put("matchedStatus", hit.getUenStatus());
             response.put("suggestions", generateAlternatives(baseName, name, 5));
             return ResponseEntity.ok(response);
         }
@@ -103,11 +98,7 @@ public class NameCheckController {
                 // Identical base name
                 if (candBase.equalsIgnoreCase(baseName)) {
                     response.put("status", "taken");
-                    response.put("message", String.format("An identical base company name is already registered in ACRA: '%s' (UEN: %s).",
-                            cand.getEntityName(), cand.getUen()));
-                    response.put("matchedUen", cand.getUen());
-                    response.put("matchedEntityName", cand.getEntityName());
-                    response.put("matchedStatus", cand.getUenStatus());
+                    response.put("message", "An identical base company name is already registered in Singapore and is unavailable.");
                     response.put("suggestions", generateAlternatives(baseName, name, 5));
                     return ResponseEntity.ok(response);
                 }
@@ -138,13 +129,7 @@ public class NameCheckController {
 
             if (bestSimilar != null) {
                 response.put("status", "similar");
-                response.put("message", String.format(
-                        "Similar registered entity found in ACRA: '%s' (UEN: %s). %s between '%s' and '%s'. Under ACRA Section 27(1)(a), names confusingly similar to an existing entity require ACRA referral or consent.",
-                        bestSimilar.getEntityName(), bestSimilar.getUen(), similarityReason, name, bestSimilar.getEntityName()));
-                response.put("similarEntity", bestSimilar.getEntityName());
-                response.put("similarUen", bestSimilar.getUen());
-                response.put("similarityReason", similarityReason);
-                response.put("similarityScore", Math.round(bestSimilarity * 100));
+                response.put("message", "A similar company name is already registered in Singapore registry. ACRA approval may require referral or consent.");
                 response.put("suggestions", generateAlternatives(baseName, name, 5));
                 return ResponseEntity.ok(response);
             }
@@ -152,7 +137,7 @@ public class NameCheckController {
 
         // 5. Cleared & Available
         response.put("status", "available");
-        response.put("message", "This name appears to be available in ACRA registry records with 0 conflicts.");
+        response.put("message", "This company name appears to be available in Singapore ACRA registry records.");
         response.put("suggestions", Collections.emptyList());
         return ResponseEntity.ok(response);
     }

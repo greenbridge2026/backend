@@ -62,3 +62,13 @@ compliancebox:
     token: ${COMPLIANCEBOX_TOKEN:4d3693b0-201c-4204-9729-e7d779a613b6}
     company-id: ${COMPLIANCEBOX_COMPANY_ID:629dbca7374a1ac76b559ee7}
 
+mail:
+  host: ${SPRING_MAIL_HOST:smtp.office365.com}
+  port: ${SPRING_MAIL_PORT:587}
+  username: ${SPRING_MAIL_USERNAME:info@smartcosec.com}
+  password: ${SPRING_MAIL_PASSWORD:}
+  from: ${SPRING_MAIL_FROM:info@smartcosec.com}
+  from-name: ${SPRING_MAIL_FROM_NAME:Globalisor}
+  portal-base-url: ${PORTAL_BASE_URL:http://localhost:5173}
+
+
